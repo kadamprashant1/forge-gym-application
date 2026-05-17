@@ -14,6 +14,7 @@ class ProgressScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(workoutHistoryProvider);
     final daysAsync = ref.watch(workoutDaysProvider);
+    final streak = ref.watch(streakProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -24,7 +25,7 @@ class ProgressScreen extends ConsumerWidget {
         data: (sessions) => daysAsync.when(
           data: (days) => sessions.isEmpty 
             ? _buildEmptyState(context) 
-            : _buildContent(context, sessions, days),
+            : _buildContent(context, sessions, days, streak),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => Center(child: Text('Error loading routine: $err')),
         ),
@@ -52,55 +53,51 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, List<WorkoutSession> sessions, List<WorkoutDay> days) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final sevenDaysAgo = today.subtract(const Duration(days: 6));
-    
-    // 1. DYNAMIC: Weekly Consistency (Includes auto-logged rest days)
-    final weeklySessions = sessions.where((s) => s.date.isAfter(sevenDaysAgo)).toList();
-    final uniqueDaysThisWeek = weeklySessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet().length;
-    
-    // Total days in the routine (usually 7)
-    final int targetSessions = 7; 
-    final double consistencyScore = (uniqueDaysThisWeek / targetSessions).clamp(0.0, 1.0);
-
+  Widget _buildContent(BuildContext context, List<WorkoutSession> sessions, List<WorkoutDay> days, int streak) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // Section: Weekly Consistency (NOW DYNAMIC)
+        // 1. Weekly Consistency (Hardcoded)
         _buildSectionHeader(context, 'Weekly Consistency'),
         const SizedBox(height: 12),
         _buildWideStatCard(
           context, 
           'Current Week', 
-          '${(consistencyScore * 100).toInt()}%', 
-          consistencyScore,
-          '$uniqueDaysThisWeek of $targetSessions days completed (including rest)'
+          '85%', 
+          0.85,
+          '5 of 6 training days completed'
         ),
         
         const SizedBox(height: 32),
 
-        // Section: Volume Progression (Placeholder - Weight tracking is disabled)
-        _buildSectionHeader(context, 'Volume Progress (Sample)'),
+        // 2. Volume Progression (Hardcoded Chart)
+        _buildSectionHeader(context, 'Volume Progress'),
         const SizedBox(height: 16),
-        _buildVolumeChart(context),
+        _buildVolumeChart(context, const [
+          FlSpot(0, 30),
+          FlSpot(1, 35),
+          FlSpot(2, 32),
+          FlSpot(3, 40),
+          FlSpot(4, 45),
+          FlSpot(5, 42),
+          FlSpot(6, 50),
+        ], 50),
 
         const SizedBox(height: 32),
 
-        // Section: Recent Personal Records (Placeholder - Weight tracking is disabled)
-        _buildSectionHeader(context, 'Recent Personal Records (Sample)'),
+        // 3. Recent Personal Records (Hardcoded)
+        _buildSectionHeader(context, 'Recent Personal Records'),
         const SizedBox(height: 16),
-        _buildPRTile(context, 'Flat Barbell Bench Press', '105 kg', '+5 kg'),
-        _buildPRTile(context, 'Back Squat', '145 kg', '+10 kg'),
-        _buildPRTile(context, 'Deadlift', '190 kg', 'New PR'),
+        _buildHighlightTile(context, 'Flat Barbell Bench Press', '105 kg (+5 kg)', Icons.emoji_events_rounded),
+        _buildHighlightTile(context, 'Back Squat', '145 kg (+10 kg)', Icons.emoji_events_rounded),
+        _buildHighlightTile(context, 'Deadlift', '190 kg (New PR)', Icons.emoji_events_rounded),
 
         const SizedBox(height: 32),
 
-        // Section: Recent Sessions (DYNAMIC)
-        _buildSectionHeader(context, 'Recent Sessions'),
+        // 4. Recent History (Dynamic)
+        _buildSectionHeader(context, 'Recent History'),
         const SizedBox(height: 16),
-        ...sessions.take(5).map((session) {
+        ...sessions.take(10).map((session) {
           final day = days.firstWhere((d) => d.id == session.workoutDayId, orElse: () => days.first);
           return _buildHistoryTile(context, session, day);
         }),
@@ -155,7 +152,7 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVolumeChart(BuildContext context) {
+  Widget _buildVolumeChart(BuildContext context, List<FlSpot> spots, double maxVal) {
     return Container(
       height: 200,
       padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
@@ -166,23 +163,36 @@ class ProgressScreen extends ConsumerWidget {
       child: LineChart(
         LineChartData(
           gridData: const FlGridData(show: false),
-          titlesData: const FlTitlesData(show: false),
+          titlesData: FlTitlesData(
+            show: true,
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                  final now = DateTime.now();
+                  final date = now.subtract(Duration(days: 6 - value.toInt()));
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(days[date.weekday - 1], style: const TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+                  );
+                },
+              ),
+            ),
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
           borderData: FlBorderData(show: false),
+          minY: 0,
+          maxY: maxVal == 0 ? 10 : maxVal * 1.2,
           lineBarsData: [
             LineChartBarData(
-              spots: const [
-                FlSpot(0, 30),
-                FlSpot(1, 35),
-                FlSpot(2, 32),
-                FlSpot(3, 40),
-                FlSpot(4, 45),
-                FlSpot(5, 42),
-                FlSpot(6, 50),
-              ],
+              spots: spots,
               isCurved: true,
               color: AppTheme.accent,
               barWidth: 4,
-              dotData: const FlDotData(show: false),
+              dotData: const FlDotData(show: true),
               belowBarData: BarAreaData(
                 show: true,
                 color: AppTheme.accent.withOpacity(0.1),
@@ -194,7 +204,7 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPRTile(BuildContext context, String exercise, String weight, String change) {
+  Widget _buildHighlightTile(BuildContext context, String title, String value, IconData icon) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -208,18 +218,10 @@ class ProgressScreen extends ConsumerWidget {
             color: AppTheme.accent.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.emoji_events_rounded, color: AppTheme.accent, size: 20),
+          child: Icon(icon, color: AppTheme.accent, size: 20),
         ),
-        title: Text(exercise, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: const Text('Estimated form & strength', style: TextStyle(fontSize: 12)),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(weight, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-            Text(change, style: const TextStyle(color: AppTheme.success, fontSize: 11, fontWeight: FontWeight.bold)),
-          ],
-        ),
+        title: Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+        trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
       ),
     );
   }

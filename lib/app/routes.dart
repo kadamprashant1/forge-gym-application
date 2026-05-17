@@ -3,11 +3,16 @@ import 'package:go_router/go_router.dart';
 import 'package:forge/presentation/home/home_screen.dart';
 import 'package:forge/presentation/workout/workout_detail_screen.dart';
 import 'package:forge/presentation/progress/progress_screen.dart';
+import 'package:forge/presentation/splash/splash_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const HomeScreen(),
