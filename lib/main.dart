@@ -18,11 +18,19 @@ void main() async {
   // Initialize Dependency Injection
   setupInjection(hiveService);
 
-  // Import default workout plan if the database is empty
   final repository = getIt<WorkoutRepository>();
   final existingDays = await repository.getWorkoutDays();
   
-  if (existingDays.isEmpty) {
+  bool needsUpdate = false;
+  if (existingDays.isNotEmpty) {
+    final firstDayExercises = await repository.getExercisesByWorkoutDay(existingDays.first.id);
+    // If data exists but doesn't have video URLs, we force a re-import
+    if (firstDayExercises.isNotEmpty && (firstDayExercises.first.videoUrl == null)) {
+      needsUpdate = true;
+    }
+  }
+  
+  if (existingDays.isEmpty || needsUpdate) {
     final plan = DefaultWorkoutPlan.getPlan();
     await repository.importWorkoutPlan(
       plan['days'] as List<WorkoutDay>,

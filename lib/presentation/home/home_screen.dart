@@ -11,6 +11,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final workoutDaysAsync = ref.watch(workoutDaysProvider);
+    final streakCount = ref.watch(streakProvider);
 
     return Scaffold(
       body: CustomScrollView(
@@ -32,9 +33,14 @@ class HomeScreen extends ConsumerWidget {
                 icon: const Icon(Icons.local_fire_department, color: AppTheme.accent),
                 onPressed: () {},
               ),
-              const Padding(
-                padding: EdgeInsets.only(right: 16),
-                child: Center(child: Text('7', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent))),
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Center(
+                  child: Text(
+                    streakCount.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent),
+                  ),
+                ),
               ),
             ],
           ),
@@ -63,7 +69,7 @@ class HomeScreen extends ConsumerWidget {
                           itemCount: days.length,
                           itemBuilder: (context, index) {
                             final day = days[index];
-                            return _buildPlanCard(context, day);
+                            return _buildPlanCard(context, day, ref);
                           },
                         ),
                     loading: () => const Center(child: CircularProgressIndicator()),
@@ -93,101 +99,168 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildCurrentDayCard(BuildContext context, WidgetRef ref) {
     final workoutDaysAsync = ref.watch(workoutDaysProvider);
+    final historyAsync = ref.watch(workoutHistoryProvider);
     
     return workoutDaysAsync.maybeWhen(
       data: (days) {
         if (days.isEmpty) return const SizedBox.shrink();
         
         final now = DateTime.now();
-        final weekdayIndex = now.weekday - 1;
+        final weekdayIndex = now.weekday - 1; 
         final currentDay = days.firstWhere(
           (d) => d.scheduledDay == weekdayIndex,
           orElse: () => days.first,
         );
 
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppTheme.accent.withOpacity(0.2), AppTheme.surface],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.accent.withOpacity(0.5), width: 1.5),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        final isSunday = now.weekday == DateTime.sunday;
+        
+        return historyAsync.maybeWhen(
+          data: (sessions) {
+            final today = DateTime(now.year, now.month, now.day);
+            final isCompleted = sessions.any((s) => 
+              s.date.year == today.year && s.date.month == today.month && s.date.day == today.day);
+
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isCompleted 
+                    ? [AppTheme.success.withOpacity(0.2), AppTheme.surface]
+                    : [AppTheme.accent.withOpacity(0.2), AppTheme.surface],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isCompleted ? AppTheme.success.withOpacity(0.5) : AppTheme.accent.withOpacity(0.5), 
+                  width: 1.5
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('TODAY\'S SESSION', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppTheme.accent, letterSpacing: 1.2)),
-                      const SizedBox(height: 4),
-                      Text(currentDay.name, style: Theme.of(context).textTheme.headlineMedium),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isCompleted ? 'COMPLETED' : 'TODAY\'S SESSION', 
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: isCompleted ? AppTheme.success : AppTheme.accent, 
+                              letterSpacing: 1.2
+                            )
+                          ),
+                          const SizedBox(height: 4),
+                          Text(currentDay.name, style: Theme.of(context).textTheme.headlineMedium),
+                        ],
+                      ),
+                      Icon(
+                        isCompleted ? Icons.check_circle : (isSunday ? Icons.hotel : Icons.play_circle_fill),
+                        size: 48, 
+                        color: isCompleted ? AppTheme.success : AppTheme.accent
+                      ),
                     ],
                   ),
-                  const Icon(Icons.play_circle_fill, size: 48, color: AppTheme.accent),
+                  const SizedBox(height: 12),
+                  Text(
+                    isSunday ? 'Enjoy your mandatory rest day!' : currentDay.targetMuscles.join(' • '),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(height: 24),
+                  if (!isCompleted)
+                    ElevatedButton(
+                      onPressed: () => context.push('/workout/${currentDay.id}'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 54),
+                        backgroundColor: AppTheme.accent,
+                      ),
+                      child: const Text('START TRAINING', style: TextStyle(letterSpacing: 1.1)),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'SESSION FINISHED', 
+                          style: TextStyle(color: AppTheme.success, fontWeight: FontWeight.bold, letterSpacing: 1.1)
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                currentDay.targetMuscles.join(' • '),
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppTheme.textSecondary),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => context.push('/workout/${currentDay.id}'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 54),
-                  backgroundColor: AppTheme.accent,
-                ),
-                child: const Text('START TRAINING', style: TextStyle(letterSpacing: 1.1)),
-              ),
-            ],
-          ),
+            );
+          },
+          orElse: () => const CircularProgressIndicator(),
         );
       },
       orElse: () => const SizedBox.shrink(),
     );
   }
 
-  Widget _buildPlanCard(BuildContext context, WorkoutDay day) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () => context.push('/workout/${day.id}'),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                day.name,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+  Widget _buildPlanCard(BuildContext context, WorkoutDay day, WidgetRef ref) {
+    final historyAsync = ref.watch(workoutHistoryProvider);
+    
+    return historyAsync.maybeWhen(
+      data: (sessions) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final isToday = day.scheduledDay == (now.weekday - 1);
+        final isCompleted = sessions.any((s) => 
+          s.workoutDayId == day.id && 
+          s.date.year == today.year && s.date.month == today.month && s.date.day == today.day);
+
+        return Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: InkWell(
+            onTap: () => context.push('/workout/${day.id}'),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        day.name,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isCompleted ? AppTheme.success : (isToday ? AppTheme.accent : Colors.white),
+                        ),
+                      ),
+                      if (isCompleted)
+                        const Icon(Icons.check_circle, size: 16, color: AppTheme.success),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    day.targetMuscles.take(2).join(', '),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Icon(Icons.arrow_forward_ios, size: 14, color: isToday ? AppTheme.accent : Colors.white24),
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                day.targetMuscles.take(2).join(', '),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const Spacer(),
-              const Align(
-                alignment: Alignment.bottomRight,
-                child: Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.accent),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
+      orElse: () => const Card(),
     );
   }
 

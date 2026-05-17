@@ -16,10 +16,14 @@ class UserSettings extends HiveObject {
   @HiveField(3)
   final bool notificationsEnabled;
 
+  @HiveField(4)
+  final int planVersion;
+
   UserSettings({
     this.themeMode = 'dark',
     this.weightUnit = 'kg',
     this.restTimerDuration = 90,
     this.notificationsEnabled = true,
+    this.planVersion = 0,
   });
 }

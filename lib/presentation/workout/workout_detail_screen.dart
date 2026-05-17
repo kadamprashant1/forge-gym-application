@@ -167,7 +167,46 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
       );
       return;
     }
-    // ... logic to save session ...
-    Navigator.pop(context);
+
+    final repo = ref.read(workoutRepositoryProvider);
+    final sessionId = const Uuid().v4();
+    final endTime = DateTime.now();
+    final duration = endTime.difference(_startTime).inMinutes;
+
+    final session = WorkoutSession(
+      id: sessionId,
+      date: _startTime,
+      workoutDayId: widget.workoutId,
+      durationMinutes: duration,
+      completed: true,
+    );
+
+    final List<ExerciseLog> logsToSave = [];
+    for (var exerciseId in _completedExercises) {
+      logsToSave.add(ExerciseLog(
+        id: const Uuid().v4(),
+        sessionId: sessionId,
+        exerciseId: exerciseId,
+        setNumber: 1,
+        weight: 0,
+        repsCompleted: 0,
+      ));
+    }
+
+    await repo.saveWorkoutSession(session);
+    await repo.saveExerciseLogs(logsToSave);
+    
+    // Invalidate history to update streak on Home Screen
+    ref.invalidate(workoutHistoryProvider);
+
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Workout session saved!'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    }
   }
 }

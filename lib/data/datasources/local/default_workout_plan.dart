@@ -27,7 +27,7 @@ class DefaultWorkoutPlan {
       _createExercise(mondayId, 'Seated Dumbbell Shoulder Press', 3, 3, 8, 10, video: 'https://www.youtube.com/watch?v=qEwKCR5JCog'),
       _createExercise(mondayId, 'Cable Lateral Raises', 4, 3, 15, 15, video: 'https://www.youtube.com/watch?v=Z5FA9aq3L6A'),
       _createExercise(mondayId, 'Triceps Pushdown (Rope)', 5, 3, 12, 12, video: 'https://www.youtube.com/watch?v=vB5OHsJ3EME'),
-        _createExercise(mondayId, 'Overhead Tricep Extension', 6, 3, 10, 12, video: 'https://www.youtube.com/watch?v=ns-RGsbzqok'),
+      _createExercise(mondayId, 'Overhead Tricep Extension', 6, 3, 10, 12, video: 'https://www.youtube.com/watch?v=ns-RGsbzqok'),
     ]);
 
     // TUESDAY
@@ -133,6 +133,17 @@ class DefaultWorkoutPlan {
       _createExercise(saturdayId, 'Seated Hamstring Curl', 4, 3, 15, 15, video: 'https://www.youtube.com/watch?v=ELOCsoDSmrg'),
       _createExercise(saturdayId, 'Seated Calf Raises', 5, 3, 25, 25, video: 'https://www.youtube.com/watch?v=YBTAGDs8vys'),
     ]);
+
+    // SUNDAY
+    final sundayId = _uuid.v4();
+    days.add(WorkoutDay(
+      id: sundayId,
+      name: 'Sunday',
+      dayOrder: 6,
+      targetMuscles: ['Full Recovery'],
+      workoutType: 'rest',
+      scheduledDay: 6,
+    ));
 
     return {'days': days, 'exercises': exercises};
   }
