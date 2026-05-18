@@ -54,23 +54,40 @@ class ProgressScreen extends ConsumerWidget {
   }
 
   Widget _buildContent(BuildContext context, List<WorkoutSession> sessions, List<WorkoutDay> days, int streak) {
+    // Calculate Current Week Consistency
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final weekStart = DateTime(monday.year, monday.month, monday.day);
+    
+    final trainingDays = days.where((d) => d.workoutType != 'rest').toList();
+    final trainingDayIds = trainingDays.map((d) => d.id).toSet();
+    
+    final sessionsThisWeek = sessions.where((s) => 
+      s.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) && 
+      trainingDayIds.contains(s.workoutDayId)
+    ).toList();
+    
+    final completedDaysCount = sessionsThisWeek.map((s) => s.workoutDayId).toSet().length;
+    final totalTrainingDays = trainingDays.length;
+    final consistencyPercent = totalTrainingDays > 0 ? completedDaysCount / totalTrainingDays : 0.0;
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // 1. Weekly Consistency (Hardcoded)
+        // 1. Weekly Consistency (Dynamic)
         _buildSectionHeader(context, 'Weekly Consistency'),
         const SizedBox(height: 12),
         _buildWideStatCard(
           context, 
           'Current Week', 
-          '85%', 
-          0.85,
-          '5 of 6 training days completed'
+          '${(consistencyPercent * 100).toInt()}%', 
+          consistencyPercent,
+          '$completedDaysCount of $totalTrainingDays training days completed'
         ),
         
         const SizedBox(height: 32),
 
-        // 2. Volume Progression (Hardcoded Chart)
+        // 2. Volume Progression (Hardcoded Chart - will be dynamic once exercise logs are integrated)
         _buildSectionHeader(context, 'Volume Progress'),
         const SizedBox(height: 16),
         _buildVolumeChart(context, const [
@@ -85,12 +102,11 @@ class ProgressScreen extends ConsumerWidget {
 
         const SizedBox(height: 32),
 
-        // 3. Recent Personal Records (Hardcoded)
+        // 3. Recent Personal Records (Placeholder)
         _buildSectionHeader(context, 'Recent Personal Records'),
         const SizedBox(height: 16),
-        _buildHighlightTile(context, 'Flat Barbell Bench Press', '105 kg (+5 kg)', Icons.emoji_events_rounded),
-        _buildHighlightTile(context, 'Back Squat', '145 kg (+10 kg)', Icons.emoji_events_rounded),
-        _buildHighlightTile(context, 'Deadlift', '190 kg (New PR)', Icons.emoji_events_rounded),
+        _buildHighlightTile(context, 'Flat Barbell Bench Press', 'Log weight to see PRs', Icons.emoji_events_rounded),
+        _buildHighlightTile(context, 'Back Squat', 'Log weight to see PRs', Icons.emoji_events_rounded),
 
         const SizedBox(height: 32),
 
@@ -221,7 +237,7 @@ class ProgressScreen extends ConsumerWidget {
           child: Icon(icon, color: AppTheme.accent, size: 20),
         ),
         title: Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-        trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       ),
     );
   }

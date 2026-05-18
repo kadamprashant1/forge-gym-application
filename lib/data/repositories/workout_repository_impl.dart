@@ -1,4 +1,5 @@
 import 'package:forge/data/datasources/local/hive_service.dart';
+import 'package:forge/data/datasources/local/default_workout_plan.dart';
 import 'package:forge/domain/entities/exercise.dart';
 import 'package:forge/domain/entities/exercise_log.dart';
 import 'package:forge/domain/entities/workout_day.dart';
@@ -13,6 +14,15 @@ class WorkoutRepositoryImpl implements WorkoutRepository {
   @override
   Future<List<WorkoutDay>> getWorkoutDays() async {
     final box = _hiveService.getBox<WorkoutDay>(HiveService.workoutDaysBox);
+    
+    if (box.isEmpty) {
+      final plan = DefaultWorkoutPlan.getPlan();
+      await importWorkoutPlan(
+        plan['days'] as List<WorkoutDay>,
+        plan['exercises'] as List<Exercise>,
+      );
+    }
+
     return box.values.toList()..sort((a, b) => a.dayOrder.compareTo(b.dayOrder));
   }
 
