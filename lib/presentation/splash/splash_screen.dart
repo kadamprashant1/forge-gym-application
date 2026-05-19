@@ -54,8 +54,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       elapsed += interval.inMilliseconds;
       setState(() {
         _loadingProgress = (elapsed / totalDuration.inMilliseconds).clamp(0.0, 1.0);
-        
-        // Update status message based on progress
         int messageIndex = (_loadingProgress * (_statusMessages.length - 1)).floor();
         _loadingStatus = _statusMessages[messageIndex];
       });
@@ -81,7 +79,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       backgroundColor: AppTheme.primary,
       body: Stack(
         children: [
-          // Background subtle gradient
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -106,24 +103,23 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // The "Forge" Logo
+                        // Branded PNG Logo
                         Container(
-                          padding: const EdgeInsets.all(24),
+                          width: 150,
+                          height: 150,
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: AppTheme.accent, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.accent.withOpacity(0.2),
-                                blurRadius: 30,
+                                color: AppTheme.accent.withOpacity(0.1),
+                                blurRadius: 40,
                                 spreadRadius: 5,
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.fitness_center_rounded,
-                            size: 70,
-                            color: AppTheme.accent,
+                          child: Image.asset(
+                            'assets/icon/forge_icon.png',
                           ),
                         ),
                         const SizedBox(height: 32),
@@ -151,7 +147,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               },
             ),
           ),
-          // Loading sequence at the bottom
           Positioned(
             bottom: 80,
             left: 40,

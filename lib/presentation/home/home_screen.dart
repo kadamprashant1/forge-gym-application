@@ -21,26 +21,37 @@ class HomeScreen extends ConsumerWidget {
             floating: true,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Forge Fitness',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              title: Row(
+                children: [
+                  Image.asset(
+                    'assets/icon/forge_icon.png',
+                    height: 24,
+                    width: 24,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'FORGE',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
               ),
               centerTitle: false,
               titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.local_fire_department, color: AppTheme.accent),
-                onPressed: () {},
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Center(
-                  child: Text(
+              Row(
+                children: [
+                  const Icon(Icons.local_fire_department, color: AppTheme.accent, size: 20),
+                  const SizedBox(width: 4),
+                  Text(
                     streakCount.toString(),
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent, fontSize: 16),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                ],
               ),
             ],
           ),
@@ -176,7 +187,7 @@ class HomeScreen extends ConsumerWidget {
                         minimumSize: const Size(double.infinity, 54),
                         backgroundColor: AppTheme.accent,
                       ),
-                      child: const Text('START TRAINING', style: TextStyle(letterSpacing: 1.1)),
+                      child: const Text('START TRAINING', style: TextStyle(color: Colors.black, letterSpacing: 1.1, fontWeight: FontWeight.bold)),
                     )
                   else
                     Container(
@@ -231,11 +242,15 @@ class HomeScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        day.name,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: isCompleted ? AppTheme.success : (isToday ? AppTheme.accent : Colors.white),
+                      Expanded(
+                        child: Text(
+                          day.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: isCompleted ? AppTheme.success : (isToday ? AppTheme.accent : Colors.white),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (isCompleted)

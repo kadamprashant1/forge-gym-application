@@ -43,7 +43,7 @@ class DefaultWorkoutPlan {
 
     exercises.addAll([
       _createExercise(tuesdayId, 'Conventional Deadlift', 0, 3, 4, 6, notes: 'Heavy', video: 'https://www.youtube.com/watch?v=op9kVnSso6Q'),
-      _createExercise(tuesdayId, 'Weighted Pull-Ups', 1, 4, 6, 10, video: 'https://www.youtube.com/watch?v=i9SInYSTv_k'),
+      _createExercise(tuesdayId, 'Weighted Pull-Ups', 1, 4, 6, 10, video: 'https://www.youtube.com/watch?v=jgFel4wZl3I'),
       _createExercise(tuesdayId, 'Barbell Rows', 2, 3, 8, 8, video: 'https://www.youtube.com/watch?v=9efgcAjQe7E'),
       _createExercise(tuesdayId, 'Lat Pulldown', 3, 3, 10, 12, video: 'https://www.youtube.com/watch?v=jgFel4wZl3I'),
       _createExercise(tuesdayId, 'Cable Rows (Neutral Grip)', 4, 3, 12, 12, video: 'https://www.youtube.com/watch?v=GZbfZ033f74'),

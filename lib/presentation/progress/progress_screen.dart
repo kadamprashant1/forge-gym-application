@@ -5,7 +5,9 @@ import 'package:forge/app/theme.dart';
 import 'package:forge/presentation/providers/workout_provider.dart';
 import 'package:forge/domain/entities/workout_session.dart';
 import 'package:forge/domain/entities/workout_day.dart';
+import 'package:forge/domain/entities/exercise.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProgressScreen extends ConsumerWidget {
   const ProgressScreen({super.key});
@@ -41,10 +43,7 @@ class ProgressScreen extends ConsumerWidget {
         children: [
           Icon(Icons.insights_rounded, size: 80, color: AppTheme.textMuted.withOpacity(0.2)),
           const SizedBox(height: 20),
-          Text(
-            'No Workouts Recorded',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppTheme.textSecondary),
-          ),
+          const Text('No Workouts Recorded', style: TextStyle(color: AppTheme.textSecondary, fontSize: 18)),
           const SizedBox(height: 12),
           const Text('Start training to track your evolution!', style: TextStyle(color: AppTheme.textMuted)),
         ],
@@ -60,65 +59,99 @@ class ProgressScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // 1. Weekly Consistency (Dynamic)
         _buildSectionHeader(context, 'Weekly Consistency'),
         const SizedBox(height: 12),
-        _buildWideStatCard(
-          context, 
-          'Current Week', 
-          consistency['ratio'], 
-          consistency['percentage'],
-          consistency['text']
-        ),
+        _buildWideStatCard(context, 'Current Week', consistency['ratio'], consistency['percentage'], consistency['text']),
         
         const SizedBox(height: 32),
-
-        // 2. Volume Progression (Dynamic Chart)
         _buildSectionHeader(context, 'Volume Progress'),
         const SizedBox(height: 16),
         _buildVolumeChart(context, volumeData),
 
         const SizedBox(height: 32),
-
-        // 3. Recent Personal Records (Dynamic)
         _buildSectionHeader(context, 'Recent Personal Records'),
         const SizedBox(height: 16),
         prsAsync.when(
           data: (prs) => prs.isEmpty
             ? const Text('Keep pushing to set new records!', style: TextStyle(color: AppTheme.textMuted, fontSize: 13))
-            : Column(
-                children: prs.map((pr) => _buildHighlightTile(
-                  context, 
-                  pr['name'], 
-                  pr['value'], 
-                  Icons.emoji_events_rounded
-                )).toList(),
-              ),
+            : Column(children: prs.map((pr) => _buildHighlightTile(context, pr['name'], pr['value'], Icons.emoji_events_rounded)).toList()),
           loading: () => const LinearProgressIndicator(),
           error: (_, __) => const Text('Error loading records'),
         ),
 
         const SizedBox(height: 32),
-
-        // 4. Recent History (Dynamic)
         _buildSectionHeader(context, 'Recent History'),
         const SizedBox(height: 16),
-        ...sessions.take(10).map((session) {
+        ...sessions.take(15).map((session) {
           final day = days.firstWhere((d) => d.id == session.workoutDayId, orElse: () => days.first);
-          return _buildHistoryTile(context, session, day);
+          return _buildHistoryExpansionTile(context, ref, session, day);
         }),
       ],
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
+  Widget _buildHistoryExpansionTile(BuildContext context, WidgetRef ref, WorkoutSession session, WorkoutDay day) {
+    final isRest = day.workoutType == 'rest';
+    final exercisesAsync = ref.watch(exercisesProvider(day.id));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ExpansionTile(
+        shape: const RoundedRectangleBorder(side: BorderSide.none),
+        leading: CircleAvatar(
+          backgroundColor: isRest ? Colors.blue.withOpacity(0.1) : AppTheme.accent.withOpacity(0.1),
+          child: Icon(isRest ? Icons.hotel : Icons.check, color: isRest ? Colors.blue : AppTheme.accent, size: 18),
+        ),
+        title: Text(day.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(DateFormat('EEE, MMM d').format(session.date)),
+        trailing: Text(isRest ? 'Rest' : '${session.durationMinutes}m', style: const TextStyle(color: AppTheme.textMuted)),
+        children: [
+          if (!isRest)
+            exercisesAsync.maybeWhen(
+              data: (exercises) => Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  children: exercises.map((e) => _buildHistoryExerciseItem(e)).toList(),
+                ),
+              ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildHistoryExerciseItem(Exercise exercise) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(exercise.exerciseName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                Text('${exercise.sets} sets • ${exercise.minReps}-${exercise.maxReps} reps', 
+                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+              ],
+            ),
+          ),
+          if (exercise.videoUrl != null)
+            IconButton(
+              icon: const Icon(Icons.play_circle_fill, color: AppTheme.accent, size: 28),
+              onPressed: () => launchUrl(Uri.parse(exercise.videoUrl!)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 0.5));
   }
 
   Widget _buildWideStatCard(BuildContext context, String title, String value, double progress, String subtitle) {
@@ -161,18 +194,10 @@ class ProgressScreen extends ConsumerWidget {
   Widget _buildVolumeChart(BuildContext context, List<double> volumeData) {
     double maxVolume = volumeData.isEmpty ? 10.0 : volumeData.reduce((a, b) => a > b ? a : b);
     if (maxVolume == 0) maxVolume = 10.0;
-
-    final List<FlSpot> spots = volumeData.asMap().entries.map((e) {
-      return FlSpot(e.key.toDouble(), e.value);
-    }).toList();
-
     return Container(
       height: 200,
       padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(20)),
       child: LineChart(
         LineChartData(
           gridData: const FlGridData(show: false),
@@ -201,15 +226,12 @@ class ProgressScreen extends ConsumerWidget {
           maxY: maxVolume * 1.2,
           lineBarsData: [
             LineChartBarData(
-              spots: spots,
+              spots: volumeData.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
               isCurved: true,
               color: AppTheme.accent,
               barWidth: 4,
               dotData: const FlDotData(show: true),
-              belowBarData: BarAreaData(
-                show: true,
-                color: AppTheme.accent.withOpacity(0.1),
-              ),
+              belowBarData: BarAreaData(show: true, color: AppTheme.accent.withOpacity(0.1)),
             ),
           ],
         ),
@@ -220,41 +242,15 @@ class ProgressScreen extends ConsumerWidget {
   Widget _buildHighlightTile(BuildContext context, String title, String value, IconData icon) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppTheme.accent.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: AppTheme.accent.withOpacity(0.1), shape: BoxShape.circle),
           child: Icon(icon, color: AppTheme.accent, size: 20),
         ),
         title: Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
         trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-      ),
-    );
-  }
-
-  Widget _buildHistoryTile(BuildContext context, WorkoutSession session, WorkoutDay day) {
-    final isRest = day.workoutType == 'rest';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isRest ? Colors.blue.withOpacity(0.1) : AppTheme.accent.withOpacity(0.1),
-          child: Icon(isRest ? Icons.hotel : Icons.check, color: isRest ? Colors.blue : AppTheme.accent, size: 18),
-        ),
-        title: Text(day.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(DateFormat('EEE, MMM d').format(session.date)),
-        trailing: Text(isRest ? 'Rest' : '${session.durationMinutes}m', style: const TextStyle(color: AppTheme.textMuted)),
       ),
     );
   }

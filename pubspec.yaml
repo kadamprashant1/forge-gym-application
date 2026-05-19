@@ -23,6 +23,7 @@ dependencies:
   intl: ^0.19.0
   url_launcher: ^6.2.5
   youtube_player_flutter: ^9.1.1
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:
@@ -36,9 +37,11 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icon/forge_icon.svg"
-  adaptive_icon_background: "#121212"
-  adaptive_icon_foreground: "assets/icon/forge_icon.svg"
+  image_path: "assets/icon/forge_icon.png"
+  adaptive_icon_background: "#0a0a0a"
+  adaptive_icon_foreground: "assets/icon/forge_icon.png"
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/
