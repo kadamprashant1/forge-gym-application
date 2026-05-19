@@ -6,7 +6,7 @@ import 'package:forge/domain/entities/exercise.dart';
 import 'package:forge/domain/entities/exercise_log.dart';
 import 'package:forge/domain/entities/workout_session.dart';
 import 'package:uuid/uuid.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class WorkoutDetailScreen extends ConsumerStatefulWidget {
   final String workoutId;
@@ -18,6 +18,7 @@ class WorkoutDetailScreen extends ConsumerStatefulWidget {
 
 class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
   final DateTime _startTime = DateTime.now();
+  String? _activeVideoExerciseId;
 
   String? _getYoutubeId(String? url) {
     if (url == null || url.isEmpty) return null;
@@ -88,6 +89,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
 
   Widget _buildExerciseCard(BuildContext context, Exercise exercise) {
     final youtubeId = _getYoutubeId(exercise.videoUrl);
+    final isPlaying = _activeVideoExerciseId == exercise.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 24),
@@ -146,6 +148,12 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    Text(
+                      '${exercise.sets} × ${exercise.minReps}-${exercise.maxReps}',
+                      style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
                 if (exercise.notes != null) ...[
                   const SizedBox(height: 8),

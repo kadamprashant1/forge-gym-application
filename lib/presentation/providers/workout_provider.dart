@@ -16,6 +16,17 @@ final workoutDaysProvider = FutureProvider<List<WorkoutDay>>((ref) async {
   return repo.getWorkoutDays();
 });
 
+final allExercisesProvider = FutureProvider<List<Exercise>>((ref) async {
+  final repo = ref.watch(workoutRepositoryProvider);
+  final days = await ref.watch(workoutDaysProvider.future);
+  List<Exercise> all = [];
+  for (var day in days) {
+    final exercises = await repo.getExercisesByWorkoutDay(day.id);
+    all.addAll(exercises);
+  }
+  return all;
+});
+
 final exercisesProvider = FutureProvider.family<List<Exercise>, String>((ref, dayId) async {
   final repo = ref.watch(workoutRepositoryProvider);
   return repo.getExercisesByWorkoutDay(dayId);
@@ -57,16 +68,90 @@ final workoutHistoryProvider = FutureProvider<List<WorkoutSession>>((ref) async 
   return addedAny ? await repo.getWorkoutHistory() : history;
 });
 
-// New provider to calculate "Volume" based on completion count
 final allExerciseLogsProvider = FutureProvider<List<ExerciseLog>>((ref) async {
   final repo = ref.watch(workoutRepositoryProvider);
-  final sessions = await repo.getWorkoutHistory();
+  final sessions = await ref.watch(workoutHistoryProvider.future);
   List<ExerciseLog> allLogs = [];
   for (var session in sessions) {
     final logs = await repo.getExerciseLogs(session.id);
     allLogs.addAll(logs);
   }
   return allLogs;
+});
+
+// --- Dynamic Progress Providers ---
+
+final weeklyConsistencyProvider = Provider.autoDispose<Map<String, dynamic>>((ref) {
+  final history = ref.watch(workoutHistoryProvider).value ?? [];
+  final days = ref.watch(workoutDaysProvider).value ?? [];
+
+  if (days.isEmpty) return {'percentage': 0.0, 'text': 'No plan found', 'ratio': '0/0'};
+
+  final now = DateTime.now();
+  final monday = now.subtract(Duration(days: now.weekday - 1));
+  final startOfWeek = DateTime(monday.year, monday.month, monday.day);
+
+  final scheduledTrainingDays = days.where((d) => d.workoutType != 'rest').length;
+  final completedTrainingSessions = history.where((s) {
+    if (s.date.isBefore(startOfWeek)) return false;
+    final day = days.firstWhere((d) => d.id == s.workoutDayId, orElse: () => days.first);
+    return day.workoutType != 'rest';
+  }).length;
+
+  final percentage = scheduledTrainingDays > 0 
+      ? (completedTrainingSessions / scheduledTrainingDays).clamp(0.0, 1.0) 
+      : 0.0;
+
+  return {
+    'percentage': percentage,
+    'text': '$completedTrainingSessions of $scheduledTrainingDays training days completed',
+    'ratio': '${(percentage * 100).toInt()}%',
+  };
+});
+
+final volumeProgressProvider = Provider.autoDispose<List<double>>((ref) {
+  final history = ref.watch(workoutHistoryProvider).value ?? [];
+  final allLogs = ref.watch(allExerciseLogsProvider).value ?? [];
+
+  if (history.isEmpty) return List.filled(7, 0.0);
+
+  // Group volume by date for the last 7 days
+  final now = DateTime.now();
+  Map<String, double> dailyVolume = {};
+
+  for (var log in allLogs) {
+    final session = history.firstWhere((s) => s.id == log.sessionId);
+    final dateKey = "${session.date.year}-${session.date.month}-${session.date.day}";
+    // Volume = weight * reps. If not logged, we count it as 1 to show activity.
+    final volume = log.weight > 0 ? log.weight * log.repsCompleted : 1.0; 
+    dailyVolume[dateKey] = (dailyVolume[dateKey] ?? 0) + volume;
+  }
+
+  List<double> result = [];
+  for (int i = 6; i >= 0; i--) {
+    final d = now.subtract(Duration(days: i));
+    final key = "${d.year}-${d.month}-${d.day}";
+    result.add(dailyVolume[key] ?? 0.0);
+  }
+  return result;
+});
+
+final personalRecordsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final allLogs = await ref.watch(allExerciseLogsProvider.future);
+  final allExercises = await ref.watch(allExercisesProvider.future);
+
+  final prLogs = allLogs.where((l) => l.isPersonalRecord).toList();
+  prLogs.sort((a, b) => b.id.compareTo(a.id)); // Assuming UUIDs aren't chronological, but we'd ideally use session date
+
+  return prLogs.take(5).map((log) {
+    final exercise = allExercises.firstWhere((e) => e.id == log.exerciseId, 
+        orElse: () => Exercise(id: '', workoutDayId: '', orderIndex: 0, exerciseName: 'Unknown', sets: 0, minReps: 0, maxReps: 0));
+    return {
+      'name': exercise.exerciseName,
+      'value': '${log.weight} kg x ${log.repsCompleted}',
+      'date': 'Recent',
+    };
+  }).toList();
 });
 
 final streakProvider = Provider<int>((ref) {

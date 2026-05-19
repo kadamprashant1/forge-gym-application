@@ -223,7 +223,7 @@ class HomeScreen extends ConsumerWidget {
                         minimumSize: const Size(double.infinity, 54),
                         backgroundColor: AppTheme.accent,
                       ),
-                      child: const Text('START TRAINING', style: TextStyle(letterSpacing: 1.1)),
+                      child: const Text('START TRAINING', style: TextStyle(color: Colors.black, letterSpacing: 1.1, fontWeight: FontWeight.bold)),
                     )
                   else
                     Container(
@@ -278,11 +278,15 @@ class HomeScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        day.name,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: isCompleted ? AppTheme.success : (isToday ? AppTheme.accent : Colors.white),
+                      Expanded(
+                        child: Text(
+                          day.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: isCompleted ? AppTheme.success : (isToday ? AppTheme.accent : Colors.white),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (isCompleted)
