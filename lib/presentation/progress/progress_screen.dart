@@ -51,33 +51,52 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, WidgetRef ref, List<WorkoutSession> sessions, List<WorkoutDay> days) {
-    final consistency = ref.watch(weeklyConsistencyProvider);
-    final volumeData = ref.watch(volumeProgressProvider);
-    final prsAsync = ref.watch(personalRecordsProvider);
+  Widget _buildContent(BuildContext context, List<WorkoutSession> sessions, List<WorkoutDay> days, int streak) {
+    // Calculate Current Week Consistency
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final weekStart = DateTime(monday.year, monday.month, monday.day);
+    
+    final trainingDays = days.where((d) => d.workoutType != 'rest').toList();
+    final trainingDayIds = trainingDays.map((d) => d.id).toSet();
+    
+    final sessionsThisWeek = sessions.where((s) => 
+      s.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) && 
+      trainingDayIds.contains(s.workoutDayId)
+    ).toList();
+    
+    final completedDaysCount = sessionsThisWeek.map((s) => s.workoutDayId).toSet().length;
+    final totalTrainingDays = trainingDays.length;
+    final consistencyPercent = totalTrainingDays > 0 ? completedDaysCount / totalTrainingDays : 0.0;
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        // 1. Weekly Consistency (Dynamic)
         _buildSectionHeader(context, 'Weekly Consistency'),
         const SizedBox(height: 12),
-        _buildWideStatCard(context, 'Current Week', consistency['ratio'], consistency['percentage'], consistency['text']),
+        _buildWideStatCard(
+          context, 
+          'Current Week', 
+          '${(consistencyPercent * 100).toInt()}%', 
+          consistencyPercent,
+          '$completedDaysCount of $totalTrainingDays training days completed'
+        ),
         
         const SizedBox(height: 32),
+
+        // 2. Volume Progression (Hardcoded Chart - will be dynamic once exercise logs are integrated)
         _buildSectionHeader(context, 'Volume Progress'),
         const SizedBox(height: 16),
         _buildVolumeChart(context, volumeData),
 
         const SizedBox(height: 32),
+
+        // 3. Recent Personal Records (Placeholder)
         _buildSectionHeader(context, 'Recent Personal Records'),
         const SizedBox(height: 16),
-        prsAsync.when(
-          data: (prs) => prs.isEmpty
-            ? const Text('Keep pushing to set new records!', style: TextStyle(color: AppTheme.textMuted, fontSize: 13))
-            : Column(children: prs.map((pr) => _buildHighlightTile(context, pr['name'], pr['value'], Icons.emoji_events_rounded)).toList()),
-          loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const Text('Error loading records'),
-        ),
+        _buildHighlightTile(context, 'Flat Barbell Bench Press', 'Log weight to see PRs', Icons.emoji_events_rounded),
+        _buildHighlightTile(context, 'Back Squat', 'Log weight to see PRs', Icons.emoji_events_rounded),
 
         const SizedBox(height: 32),
         _buildSectionHeader(context, 'Recent History'),
@@ -251,6 +270,26 @@ class ProgressScreen extends ConsumerWidget {
         ),
         title: Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
         trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+      ),
+    );
+  }
+
+  Widget _buildHistoryTile(BuildContext context, WorkoutSession session, WorkoutDay day) {
+    final isRest = day.workoutType == 'rest';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isRest ? Colors.blue.withOpacity(0.1) : AppTheme.accent.withOpacity(0.1),
+          child: Icon(isRest ? Icons.hotel : Icons.check, color: isRest ? Colors.blue : AppTheme.accent, size: 18),
+        ),
+        title: Text(day.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(DateFormat('EEE, MMM d').format(session.date)),
+        trailing: Text(isRest ? 'Rest' : '${session.durationMinutes}m', style: const TextStyle(color: AppTheme.textMuted)),
       ),
     );
   }

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:forge/app/theme.dart';
 import 'package:forge/presentation/providers/workout_provider.dart';
 import 'package:forge/domain/entities/workout_day.dart';
+import 'package:forge/domain/entities/exercise.dart';
+import 'package:forge/data/datasources/local/default_workout_plan.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -14,95 +16,129 @@ class HomeScreen extends ConsumerWidget {
     final streakCount = ref.watch(streakProvider);
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: true,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Row(
-                children: [
-                  Image.asset(
-                    'assets/icon/forge_icon.png',
-                    height: 24,
-                    width: 24,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'FORGE',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(workoutDaysProvider.future),
+        color: AppTheme.accent,
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 120,
+              floating: true,
+              pinned: true,
+              flexibleSpace: FlexibleSpaceBar(
+                title: Text(
+                  'Forge Fitness',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                centerTitle: false,
+                titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.local_fire_department, color: AppTheme.accent),
+                  onPressed: () {},
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Center(
+                    child: Text(
+                      streakCount.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent),
                     ),
                   ),
-                ],
-              ),
-              centerTitle: false,
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ],
             ),
-            actions: [
-              Row(
-                children: [
-                  const Icon(Icons.local_fire_department, color: AppTheme.accent, size: 20),
-                  const SizedBox(width: 4),
-                  Text(
-                    streakCount.toString(),
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent, fontSize: 16),
-                  ),
-                  const SizedBox(width: 16),
-                ],
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCurrentDayCard(context, ref),
-                  const SizedBox(height: 32),
-                  Text('Weekly Routine', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  workoutDaysAsync.when(
-                    data: (days) => days.isEmpty 
-                      ? _buildEmptyState(context)
-                      : GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 1.3,
-                          ),
-                          itemCount: days.length,
-                          itemBuilder: (context, index) {
-                            final day = days[index];
-                            return _buildPlanCard(context, day, ref);
-                          },
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCurrentDayCard(context, ref),
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Weekly Routine', style: Theme.of(context).textTheme.titleLarge),
+                        TextButton.icon(
+                          onPressed: () => _resetPlan(context, ref),
+                          icon: const Icon(Icons.restore, size: 16),
+                          label: const Text('Reset Plan', style: TextStyle(fontSize: 12)),
                         ),
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (err, stack) => Center(child: Text('Error: $err')),
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    workoutDaysAsync.when(
+                      data: (days) => days.isEmpty 
+                        ? _buildEmptyState(context, ref)
+                        : GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 16,
+                              crossAxisSpacing: 16,
+                              childAspectRatio: 1.3,
+                            ),
+                            itemCount: days.length,
+                            itemBuilder: (context, index) {
+                              final day = days[index];
+                              return _buildPlanCard(context, day, ref);
+                            },
+                          ),
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (err, stack) => Center(child: Text('Error: $err')),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    return const Center(
+  Future<void> _resetPlan(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Workout Plan?'),
+        content: const Text('This will restore the default PPL plan and include all video tutorials.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('RESET')),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final repo = ref.read(workoutRepositoryProvider);
+      final plan = DefaultWorkoutPlan.getPlan();
+      await repo.importWorkoutPlan(
+        plan['days'] as List<WorkoutDay>,
+        plan['exercises'] as List<Exercise>,
+      );
+      ref.invalidate(workoutDaysProvider);
+    }
+  }
+
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    return Center(
       child: Column(
         children: [
-          Icon(Icons.fitness_center, size: 64, color: AppTheme.textMuted),
-          SizedBox(height: 16),
-          Text('No workout plans found. Refresh the app to load defaults.'),
+          const Icon(Icons.fitness_center, size: 64, color: AppTheme.textMuted),
+          const SizedBox(height: 16),
+          const Text('No workout plans found.', style: TextStyle(color: AppTheme.textSecondary)),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => _resetPlan(context, ref),
+            icon: const Icon(Icons.download_rounded),
+            label: const Text('LOAD DEFAULT PLAN'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accent),
+          ),
         ],
       ),
     );

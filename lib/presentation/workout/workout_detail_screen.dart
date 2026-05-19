@@ -17,18 +17,31 @@ class WorkoutDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
-  final Set<String> _completedExercises = {};
   final DateTime _startTime = DateTime.now();
   String? _activeVideoExerciseId;
 
   String? _getYoutubeId(String? url) {
-    if (url == null) return null;
-    return YoutubePlayer.convertUrlToId(url);
+    if (url == null || url.isEmpty) return null;
+    final regExp = RegExp(
+      r'^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*',
+      caseSensitive: false,
+      multiLine: false,
+    );
+    final match = regExp.firstMatch(url);
+    return (match != null && match.group(7)!.length == 11) ? match.group(7) : null;
+  }
+
+  Future<void> _launchVideo(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final exercisesAsync = ref.watch(exercisesProvider(widget.workoutId));
+    final exercises = exercisesAsync.asData?.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -38,7 +51,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
       body: exercisesAsync.when(
         data: (exercises) {
           if (exercises.isEmpty) {
-            return const Center(child: Text('No exercises found.'));
+            return const Center(child: Text('No exercises found. Reset the plan on the Home Screen.'));
           }
           return ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -54,71 +67,86 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
-        color: AppTheme.surface,
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, -5))],
+        ),
         child: ElevatedButton(
-          onPressed: () => _completeWorkout(context),
+          onPressed: exercises == null || exercises.isEmpty 
+              ? null 
+              : () => _completeWorkout(context, exercises),
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 56),
             backgroundColor: AppTheme.accent,
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: const Text('FINISH WORKOUT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          child: const Text('FINISH WORKOUT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.1)),
         ),
       ),
     );
   }
 
   Widget _buildExerciseCard(BuildContext context, Exercise exercise) {
-    final isCompleted = _completedExercises.contains(exercise.id);
     final youtubeId = _getYoutubeId(exercise.videoUrl);
     final isPlaying = _activeVideoExerciseId == exercise.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 24),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.white.withOpacity(0.05))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (youtubeId != null)
-            SizedBox(
-              height: 220,
-              width: double.infinity,
-              child: isPlaying
-                  ? YoutubePlayer(
-                      controller: YoutubePlayerController(
-                        initialVideoId: youtubeId,
-                        flags: const YoutubePlayerFlags(
-                          autoPlay: true,
-                          mute: false,
+            GestureDetector(
+              onTap: () => _launchVideo(exercise.videoUrl!),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Image.network(
+                    'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 200,
+                      color: Colors.black26,
+                      child: const Icon(Icons.video_library, size: 50, color: AppTheme.textMuted),
+                    ),
+                  ),
+                  Container(
+                    width: double.infinity,
+                    height: 200,
+                    color: Colors.black.withOpacity(0.3),
+                  ),
+                  Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accent.withOpacity(0.9),
+                          shape: BoxShape.circle,
                         ),
+                        child: const Icon(Icons.play_arrow_rounded, size: 40, color: Colors.black),
                       ),
-                      showVideoProgressIndicator: true,
-                      progressIndicatorColor: AppTheme.accent,
-                    )
-                  : _buildThumbnail(youtubeId, exercise.id),
-            )
-          else if (exercise.imagePath != null && exercise.imagePath!.isNotEmpty)
-            Image.network(
-              exercise.imagePath!,
-              height: 220,
-              width: double.infinity,
-              fit: BoxFit.cover,
+                      const SizedBox(height: 8),
+                      const Text('WATCH TUTORIAL', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        exercise.exerciseName,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: isCompleted ? AppTheme.accent : Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                Text(
+                  exercise.exerciseName,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
@@ -127,34 +155,24 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
                     ),
                   ],
                 ),
-                if (exercise.notes != null && exercise.notes!.isNotEmpty) ...[
+                if (exercise.notes != null) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    exercise.notes!,
-                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 13),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                    child: Text(
+                      exercise.notes!,
+                      style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        if (isCompleted) {
-                          _completedExercises.remove(exercise.id);
-                        } else {
-                          _completedExercises.add(exercise.id);
-                        }
-                      });
-                    },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      foregroundColor: isCompleted ? Colors.white70 : AppTheme.accent,
-                      side: BorderSide(color: isCompleted ? Colors.white24 : AppTheme.accent),
-                    ),
-                    child: Text(isCompleted ? 'COMPLETED' : 'MARK AS DONE',
-                        style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
-                  ),
+                Row(
+                  children: [
+                    _buildDetailChip(Icons.replay_rounded, '${exercise.sets} SETS'),
+                    const SizedBox(width: 12),
+                    _buildDetailChip(Icons.fitness_center_rounded, '${exercise.minReps}-${exercise.maxReps} REPS'),
+                  ],
                 ),
               ],
             ),
@@ -164,56 +182,29 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
     );
   }
 
-  Widget _buildThumbnail(String youtubeId, String exerciseId) {
-    final imageUrl = 'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg';
-    
-    // Attempt to evict from memory cache immediately
-    try {
-       NetworkImage(imageUrl).evict();
-    } catch (_) {}
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _activeVideoExerciseId = exerciseId;
-        });
-      },
-      child: Stack(
-        alignment: Alignment.center,
+  Widget _buildDetailChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Image.network(
-            imageUrl,
-            height: 220,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              height: 220,
-              color: Colors.white10,
-              child: const Icon(Icons.broken_image, color: Colors.white24),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.accent.withOpacity(0.9),
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
-            ),
-            child: const Icon(Icons.play_arrow_rounded, size: 44, color: Colors.black),
+          Icon(icon, size: 16, color: AppTheme.accent),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ],
       ),
     );
   }
 
-  void _completeWorkout(BuildContext context) async {
-    if (_completedExercises.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mark at least one exercise as done.')),
-      );
-      return;
-    }
-
+  void _completeWorkout(BuildContext context, List<Exercise> exercises) async {
     final repo = ref.read(workoutRepositoryProvider);
     final sessionId = const Uuid().v4();
     final endTime = DateTime.now();
@@ -228,11 +219,11 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
     );
 
     final List<ExerciseLog> logsToSave = [];
-    for (var exerciseId in _completedExercises) {
+    for (var exercise in exercises) {
       logsToSave.add(ExerciseLog(
         id: const Uuid().v4(),
         sessionId: sessionId,
-        exerciseId: exerciseId,
+        exerciseId: exercise.id,
         setNumber: 1,
         weight: 0,
         repsCompleted: 0,
@@ -241,15 +232,22 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
 
     await repo.saveWorkoutSession(session);
     await repo.saveExerciseLogs(logsToSave);
-
+    
     ref.invalidate(workoutHistoryProvider);
 
     if (context.mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Workout session saved!'),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Session logged successfully!'),
+            ],
+          ),
           backgroundColor: AppTheme.success,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }

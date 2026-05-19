@@ -69,11 +69,6 @@ The project follows a Clean Architecture approach to ensure maintainability and 
     flutter run
     ```
 
-## 📱 Screenshots
-
-| Home | Workout | Progress |
-| :---: | :---: | :---: |
-| ![Home](https://via.placeholder.com/200x400?text=Home+Screen) | ![Workout](https://via.placeholder.com/200x400?text=Workout+Log) | ![Progress](https://via.placeholder.com/200x400?text=Progress+Charts) |
 
 ## 📄 License
 
