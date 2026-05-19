@@ -7,6 +7,7 @@ import 'package:forge/domain/entities/exercise_log.dart';
 import 'package:forge/domain/entities/workout_session.dart';
 import 'package:uuid/uuid.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class WorkoutDetailScreen extends ConsumerStatefulWidget {
   final String workoutId;
@@ -22,13 +23,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
 
   String? _getYoutubeId(String? url) {
     if (url == null || url.isEmpty) return null;
-    final regExp = RegExp(
-      r'^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*',
-      caseSensitive: false,
-      multiLine: false,
-    );
-    final match = regExp.firstMatch(url);
-    return (match != null && match.group(7)!.length == 11) ? match.group(7) : null;
+    return YoutubePlayer.convertUrlToId(url);
   }
 
   Future<void> _launchVideo(String url) async {
@@ -51,7 +46,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
       body: exercisesAsync.when(
         data: (exercises) {
           if (exercises.isEmpty) {
-            return const Center(child: Text('No exercises found. Reset the plan on the Home Screen.'));
+            return const Center(child: Text('No exercises found.'));
           }
           return ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -99,43 +94,29 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (youtubeId != null)
-            GestureDetector(
-              onTap: () => _launchVideo(exercise.videoUrl!),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Image.network(
-                    'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 200,
-                      color: Colors.black26,
-                      child: const Icon(Icons.video_library, size: 50, color: AppTheme.textMuted),
-                    ),
-                  ),
-                  Container(
-                    width: double.infinity,
-                    height: 200,
-                    color: Colors.black.withOpacity(0.3),
-                  ),
-                  Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accent.withOpacity(0.9),
-                          shape: BoxShape.circle,
+            SizedBox(
+              height: 200,
+              width: double.infinity,
+              child: isPlaying
+                  ? YoutubePlayer(
+                      controller: YoutubePlayerController(
+                        initialVideoId: youtubeId,
+                        flags: const YoutubePlayerFlags(
+                          autoPlay: true,
+                          mute: false,
                         ),
-                        child: const Icon(Icons.play_arrow_rounded, size: 40, color: Colors.black),
                       ),
-                      const SizedBox(height: 8),
-                      const Text('WATCH TUTORIAL', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
-                    ],
-                  ),
-                ],
-              ),
+                      showVideoProgressIndicator: true,
+                      progressIndicatorColor: AppTheme.accent,
+                    )
+                  : _buildThumbnail(youtubeId, exercise.id),
+            )
+          else if (exercise.imagePath != null && exercise.imagePath!.isNotEmpty)
+            Image.network(
+              exercise.imagePath!,
+              height: 200,
+              width: double.infinity,
+              fit: BoxFit.cover,
             ),
           Padding(
             padding: const EdgeInsets.all(20.0),
@@ -148,12 +129,10 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
-                    ),
-                    Text(
-                      '${exercise.sets} × ${exercise.minReps}-${exercise.maxReps}',
-                      style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                ),
+                Text(
+                  '${exercise.sets} × ${exercise.minReps}-${exercise.maxReps}',
+                  style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.bold),
                 ),
                 if (exercise.notes != null) ...[
                   const SizedBox(height: 8),
@@ -176,6 +155,42 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(String youtubeId, String exerciseId) {
+    final imageUrl = 'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg';
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeVideoExerciseId = exerciseId;
+        });
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Image.network(
+            imageUrl,
+            height: 200,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              height: 200,
+              color: Colors.black26,
+              child: const Icon(Icons.video_library, size: 50, color: AppTheme.textMuted),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.accent.withOpacity(0.9),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.play_arrow_rounded, size: 40, color: Colors.black),
           ),
         ],
       ),

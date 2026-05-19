@@ -51,7 +51,10 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, List<WorkoutSession> sessions, List<WorkoutDay> days, int streak) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, List<WorkoutSession> sessions, List<WorkoutDay> days) {
+    // Mock volume data for now as per the comment below
+    final volumeData = [12000.0, 14500.0, 13200.0, 15800.0, 14900.0, 16200.0, 17500.0];
+
     // Calculate Current Week Consistency
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
