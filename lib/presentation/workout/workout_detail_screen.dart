@@ -6,7 +6,7 @@ import 'package:forge/domain/entities/exercise.dart';
 import 'package:forge/domain/entities/exercise_log.dart';
 import 'package:forge/domain/entities/workout_session.dart';
 import 'package:uuid/uuid.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class WorkoutDetailScreen extends ConsumerStatefulWidget {
   final String workoutId;
@@ -19,23 +19,11 @@ class WorkoutDetailScreen extends ConsumerStatefulWidget {
 class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
   final Set<String> _completedExercises = {};
   final DateTime _startTime = DateTime.now();
+  String? _activeVideoExerciseId;
 
   String? _getYoutubeId(String? url) {
     if (url == null) return null;
-    final regExp = RegExp(
-      r'^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*',
-      caseSensitive: false,
-      multiLine: false,
-    );
-    final match = regExp.firstMatch(url);
-    return (match != null && match.group(7)!.length == 11) ? match.group(7) : null;
-  }
-
-  Future<void> _launchVideo(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    return YoutubePlayer.convertUrlToId(url);
   }
 
   @override
@@ -82,6 +70,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
   Widget _buildExerciseCard(BuildContext context, Exercise exercise) {
     final isCompleted = _completedExercises.contains(exercise.id);
     final youtubeId = _getYoutubeId(exercise.videoUrl);
+    final isPlaying = _activeVideoExerciseId == exercise.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 24),
@@ -91,48 +80,61 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (youtubeId != null)
-            GestureDetector(
-              onTap: () => _launchVideo(exercise.videoUrl!),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Image.network(
-                    'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg',
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accent.withOpacity(0.8),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.play_arrow, size: 40, color: Colors.black),
-                  ),
-                ],
-              ),
+            SizedBox(
+              height: 220,
+              width: double.infinity,
+              child: isPlaying
+                  ? YoutubePlayer(
+                      controller: YoutubePlayerController(
+                        initialVideoId: youtubeId,
+                        flags: const YoutubePlayerFlags(
+                          autoPlay: true,
+                          mute: false,
+                        ),
+                      ),
+                      showVideoProgressIndicator: true,
+                      progressIndicatorColor: AppTheme.accent,
+                    )
+                  : _buildThumbnail(youtubeId, exercise.id),
+            )
+          else if (exercise.imagePath != null && exercise.imagePath!.isNotEmpty)
+            Image.network(
+              exercise.imagePath!,
+              height: 220,
+              width: double.infinity,
+              fit: BoxFit.cover,
             ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  exercise.exerciseName,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: isCompleted ? AppTheme.accent : Colors.white,
-                        fontWeight: FontWeight.bold,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        exercise.exerciseName,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: isCompleted ? AppTheme.accent : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
+                    ),
+                    Text(
+                      '${exercise.sets} × ${exercise.minReps}-${exercise.maxReps}',
+                      style: const TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                if (exercise.notes != null) ...[
-                  const SizedBox(height: 4),
+                if (exercise.notes != null && exercise.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
                   Text(
                     exercise.notes!,
                     style: const TextStyle(color: Colors.orangeAccent, fontSize: 13),
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
@@ -146,14 +148,58 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
                       });
                     },
                     style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       foregroundColor: isCompleted ? Colors.white70 : AppTheme.accent,
                       side: BorderSide(color: isCompleted ? Colors.white24 : AppTheme.accent),
                     ),
-                    child: Text(isCompleted ? 'COMPLETED' : 'MARK AS DONE'),
+                    child: Text(isCompleted ? 'COMPLETED' : 'MARK AS DONE',
+                        style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(String youtubeId, String exerciseId) {
+    final imageUrl = 'https://img.youtube.com/vi/$youtubeId/hqdefault.jpg';
+    
+    // Attempt to evict from memory cache immediately
+    try {
+       NetworkImage(imageUrl).evict();
+    } catch (_) {}
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeVideoExerciseId = exerciseId;
+        });
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Image.network(
+            imageUrl,
+            height: 220,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              height: 220,
+              color: Colors.white10,
+              child: const Icon(Icons.broken_image, color: Colors.white24),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.accent.withOpacity(0.9),
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
+            ),
+            child: const Icon(Icons.play_arrow_rounded, size: 44, color: Colors.black),
           ),
         ],
       ),
@@ -195,8 +241,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
 
     await repo.saveWorkoutSession(session);
     await repo.saveExerciseLogs(logsToSave);
-    
-    // Invalidate history to update streak on Home Screen
+
     ref.invalidate(workoutHistoryProvider);
 
     if (context.mounted) {
