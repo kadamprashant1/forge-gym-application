@@ -14,7 +14,6 @@ class ProgressScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(workoutHistoryProvider);
     final daysAsync = ref.watch(workoutDaysProvider);
-    final streak = ref.watch(streakProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -25,7 +24,7 @@ class ProgressScreen extends ConsumerWidget {
         data: (sessions) => daysAsync.when(
           data: (days) => sessions.isEmpty 
             ? _buildEmptyState(context) 
-            : _buildContent(context, sessions, days, streak),
+            : _buildContent(context, ref, sessions, days),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => Center(child: Text('Error loading routine: $err')),
         ),
@@ -53,44 +52,51 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, List<WorkoutSession> sessions, List<WorkoutDay> days, int streak) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, List<WorkoutSession> sessions, List<WorkoutDay> days) {
+    final consistency = ref.watch(weeklyConsistencyProvider);
+    final volumeData = ref.watch(volumeProgressProvider);
+    final prsAsync = ref.watch(personalRecordsProvider);
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // 1. Weekly Consistency (Hardcoded)
+        // 1. Weekly Consistency (Dynamic)
         _buildSectionHeader(context, 'Weekly Consistency'),
         const SizedBox(height: 12),
         _buildWideStatCard(
           context, 
           'Current Week', 
-          '85%', 
-          0.85,
-          '5 of 6 training days completed'
+          consistency['ratio'], 
+          consistency['percentage'],
+          consistency['text']
         ),
         
         const SizedBox(height: 32),
 
-        // 2. Volume Progression (Hardcoded Chart)
+        // 2. Volume Progression (Dynamic Chart)
         _buildSectionHeader(context, 'Volume Progress'),
         const SizedBox(height: 16),
-        _buildVolumeChart(context, const [
-          FlSpot(0, 30),
-          FlSpot(1, 35),
-          FlSpot(2, 32),
-          FlSpot(3, 40),
-          FlSpot(4, 45),
-          FlSpot(5, 42),
-          FlSpot(6, 50),
-        ], 50),
+        _buildVolumeChart(context, volumeData),
 
         const SizedBox(height: 32),
 
-        // 3. Recent Personal Records (Hardcoded)
+        // 3. Recent Personal Records (Dynamic)
         _buildSectionHeader(context, 'Recent Personal Records'),
         const SizedBox(height: 16),
-        _buildHighlightTile(context, 'Flat Barbell Bench Press', '105 kg (+5 kg)', Icons.emoji_events_rounded),
-        _buildHighlightTile(context, 'Back Squat', '145 kg (+10 kg)', Icons.emoji_events_rounded),
-        _buildHighlightTile(context, 'Deadlift', '190 kg (New PR)', Icons.emoji_events_rounded),
+        prsAsync.when(
+          data: (prs) => prs.isEmpty
+            ? const Text('Keep pushing to set new records!', style: TextStyle(color: AppTheme.textMuted, fontSize: 13))
+            : Column(
+                children: prs.map((pr) => _buildHighlightTile(
+                  context, 
+                  pr['name'], 
+                  pr['value'], 
+                  Icons.emoji_events_rounded
+                )).toList(),
+              ),
+          loading: () => const LinearProgressIndicator(),
+          error: (_, __) => const Text('Error loading records'),
+        ),
 
         const SizedBox(height: 32),
 
@@ -152,7 +158,14 @@ class ProgressScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVolumeChart(BuildContext context, List<FlSpot> spots, double maxVal) {
+  Widget _buildVolumeChart(BuildContext context, List<double> volumeData) {
+    double maxVolume = volumeData.isEmpty ? 10.0 : volumeData.reduce((a, b) => a > b ? a : b);
+    if (maxVolume == 0) maxVolume = 10.0;
+
+    final List<FlSpot> spots = volumeData.asMap().entries.map((e) {
+      return FlSpot(e.key.toDouble(), e.value);
+    }).toList();
+
     return Container(
       height: 200,
       padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
@@ -185,7 +198,7 @@ class ProgressScreen extends ConsumerWidget {
           ),
           borderData: FlBorderData(show: false),
           minY: 0,
-          maxY: maxVal == 0 ? 10 : maxVal * 1.2,
+          maxY: maxVolume * 1.2,
           lineBarsData: [
             LineChartBarData(
               spots: spots,
@@ -221,7 +234,7 @@ class ProgressScreen extends ConsumerWidget {
           child: Icon(icon, color: AppTheme.accent, size: 20),
         ),
         title: Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-        trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       ),
     );
   }
